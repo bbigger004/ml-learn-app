@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<!-- HTML文档声明，告诉浏览器这是HTML5文档 -->
+<html lang="zh-CN">
+  <head>
+    <!-- 头部信息，包含页面元数据 -->
+    <meta charset="UTF-8" />  <!-- 设置字符编码为UTF-8，支持中文显示 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />  <!-- 设置视口，确保在移动设备上正常显示 -->
+    <title>敏感人群动态保电 - 投诉风险预测</title>  <!-- 页面标题 -->
+    <!-- 引入TensorFlow.js库，用于在浏览器中进行机器学习 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+    <!-- 引入TensorFlow.js可视化工具库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@1.5.1"></script>
+    <!-- CSS样式定义 -->
+    <style>
+      /* 网页整体样式 */
+      body {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;  /* 设置字体，优先使用微软雅黑 */
+        max-width: 1200px;  /* 最大宽度限制 */
+        margin: 0 auto;  /* 水平居中 */
+        padding: 20px;  /* 内边距 */
+        background-color: #f5f5f5;  /* 背景颜色 */
+      }
+      /* 主容器样式 */
+      .container {
+        background: white;  /* 背景为白色 */
+        padding: 30px;  /* 内边距 */
+        border-radius: 10px;  /* 圆角边框 */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);  /* 轻微阴影效果 */
+      }
+      /* 页面头部样式 */
+      .header {
+        text-align: center;  /* 文本居中 */
+        margin-bottom: 30px;  /* 底部外边距 */
+        color: #2c3e50;  /* 文字颜色 */
+      }
+      /* 网格布局样式 */
+      .grid {
+        display: grid;  /* 使用CSS Grid布局 */
+        grid-template-columns: 1fr 1fr;  /* 两列等宽布局 */
+        gap: 20px;  /* 网格间距 */
+        margin-bottom: 20px;  /* 底部外边距 */
+      }
+      /* 卡片基础样式 */
+      .card {
+        background: #f8f9fa;  /* 卡片背景色 */
+        padding: 20px;  /* 内边距 */
+        border-radius: 8px;  /* 圆角边框 */
+        border-left: 4px solid #3498db;  /* 左侧蓝色边框 */
+      }
+      /* 高风险卡片样式 */
+      .card.high-risk {
+        border-left-color: #e74c3c;  /* 高风险使用红色边框 */
+        background: #ffeaea;  /* 高风险使用浅红色背景 */
+      }
+      /* 中风险卡片样式 */
+      .card.medium-risk {
+        border-left-color: #f39c12;  /* 中风险使用橙色边框 */
+        background: #fff3cd;  /* 中风险使用浅黄色背景 */
+      }
+      /* 按钮基础样式 */
+      button {
+        background: #3498db;  /* 蓝色背景 */
+        color: white;  /* 白色文字 */
+        border: none;  /* 无边框 */
+        padding: 12px 24px;  /* 内边距 */
+        border-radius: 5px;  /* 圆角边框 */
+        cursor: pointer;  /* 鼠标悬停时显示手型 */
+        font-size: 16px;  /* 字体大小 */
+        margin: 10px 5px;  /* 外边距 */
+      }
+      /* 按钮悬停效果 */
+      button:hover {
+        background: #2980b9;  /* 悬停时背景色变深 */
+      }
+      /* 禁用按钮样式 */
+      button:disabled {
+        background: #bdc3c7;  /* 禁用时背景色为灰色 */
+        cursor: not-allowed;  /* 鼠标悬停时显示禁止图标 */
+      }
+      /* 风险指示器样式 */
+      .risk-indicator {
+        display: inline-block;  /* 行内块元素 */
+        padding: 4px 12px;  /* 内边距 */
+        border-radius: 20px;  /* 圆形指示器 */
+        color: white;  /* 白色文字 */
+        font-weight: bold;  /* 加粗文字 */
+        margin-left: 10px;  /* 左侧外边距 */
+      }
+      /* 低风险指示器 */
+      .risk-low {
+        background: #27ae60;  /* 绿色背景 */
+      }
+      /* 中风险指示器 */
+      .risk-medium {
+        background: #f39c12;  /* 橙色背景 */
+      }
+      /* 高风险指示器 */
+      .risk-high {
+        background: #e74c3c;  /* 红色背景 */
+      }
+      /* 特征重要性容器 */
+      .feature-importance {
+        margin-top: 20px;  /* 顶部外边距 */
+      }
+      /* 特征条样式 */
+      .feature-bar {
+        display: flex;  /* 使用弹性布局 */
+        align-items: center;  /* 垂直居中对齐 */
+        margin: 8px 0;  /* 上下外边距 */
+      }
+      /* 特征名称样式 */
+      .feature-name {
+        width: 200px;  /* 固定宽度 */
+        font-weight: bold;  /* 加粗文字 */
+      }
+      /* 特征值容器 */
+      .feature-value {
+        flex-grow: 1;  /* 自动增长，占据剩余空间 */
+        height: 20px;  /* 高度 */
+        background: #ecf0f1;  /* 背景色 */
+        border-radius: 10px;  /* 圆角 */
+        overflow: hidden;  /* 隐藏溢出内容 */
+      }
+      /* 特征值填充条 */
+      .feature-fill {
+        height: 100%;  /* 填充整个容器高度 */
+        background: linear-gradient(90deg, #3498db, #2ecc71);  /* 从蓝到绿的渐变 */
+        transition: width 0.5s;  /* 宽度变化过渡动画 */
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 主容器 -->
+    <div class="container">
+      <!-- 页面头部 -->
+      <div class="header">
+        <h1>🏠 敏感人群动态保电 - 投诉风险预测</h1>  <!-- 主标题 -->
+        <p>基于LightGBM思想的TensorFlow.js神经网络预测模型</p>  <!-- 副标题 -->
+      </div>
+
+      <!-- 网格布局区域 -->
+      <div class="grid">
+        <!-- 模型训练状态卡片 -->
+        <div class="card">
+          <h3>📊 模型训练状态</h3>  <!-- 卡片标题 -->
+          <div id="trainingStatus">准备开始训练...</div>  <!-- 训练状态显示区域 -->
+          <div id="trainingProgress"></div>  <!-- 训练进度显示区域 -->
+          <div id="modelMetrics"></div>  <!-- 模型指标显示区域 -->
+        </div>
+
+        <!-- 实时预测控制卡片 -->
+        <div class="card">
+          <h3>⚡ 实时预测控制</h3>  <!-- 卡片标题 -->
+          <!-- 三个功能按钮 -->
+          <button onclick="startTraining()">开始训练模型</button>  <!-- 训练模型按钮 -->
+          <button onclick="generatePredictions()">生成网格预测</button>  <!-- 生成预测按钮 -->
+          <button onclick="resetModel()">重置模型</button>  <!-- 重置模型按钮 -->
+        </div>
+      </div>
+
+      <!-- 高风险网格预警卡片 -->
+      <div class="card">
+        <h3>🔍 高风险网格预警</h3>  <!-- 卡片标题 -->
+        <div id="predictions"></div>  <!-- 预测结果显示区域 -->
+      </div>
+
+      <!-- 特征重要性分析卡片 -->
+      <div class="card">
+        <h3>📈 特征重要性分析</h3>  <!-- 卡片标题 -->
+        <div id="featureImportance" class="feature-importance"></div>  <!-- 特征重要性显示区域 -->
+      </div>
+    </div>
+
+    <!-- JavaScript代码部分 -->
+    <script>
+      // 模拟数据生成器类，用于创建训练数据和预测数据
+      class PowerGridDataGenerator {
+        // 构造函数，初始化特征列表
+        constructor() {
+          // 定义模型使用的10个特征
+          this.features = [
+            'population_density', // 人口密度
+            'load_rate', // 负载率
+            'historical_faults', // 历史故障数
+            'special_group_density', // 特殊群体密度
+            'equipment_age', // 设备老化程度
+            'external_risk', // 外部风险
+            'holiday_flag', // 是否节假日
+            'economic_level', // 经济水平
+            'historical_complaints', // 历史投诉数
+            'temperature', // 温度
+          ]
+        }
+
+        // 生成模拟训练数据的方法
+        // 参数samples：要生成的样本数量，默认为10000个
+        generateTrainingData(samples = 10000) {
+          // 初始化特征和标签数组
+          const features = []
+          const labels = []
+
+          // 循环生成指定数量的样本
+          for (let i = 0; i < samples; i++) {
+            // 调用generateSample方法生成单个样本
+            const sample = this.generateSample()
+            // 将样本的特征和标签分别添加到对应数组
+            features.push(sample.features)
+            labels.push(sample.label)
+          }
+
+          // 返回转换为TensorFlow张量格式的数据
+          return {
+            features: tf.tensor2d(features), // 2维张量，每行是一个样本的特征
+            labels: tf.tensor1d(labels),     // 1维张量，每个元素是一个样本的标签
+          }
+        }
+
+        // 生成单个样本的方法
+        generateSample() {
+          // 生成符合业务逻辑的各种特征值
+          const populationDensity = Math.random() // 人口密度 0-1之间的随机数
+          const loadRate = Math.random() // 负载率 0-1之间的随机数
+          const historicalFaults = Math.floor(Math.random() * 10) // 历史故障数 0-9的整数
+          const specialGroupDensity = Math.random() // 特殊群体密度 0-1之间的随机数
+          const equipmentAge = Math.random() // 设备老化程度 0-1之间的随机数
+          const externalRisk = Math.random() // 外部风险 0-1之间的随机数
+          const holidayFlag = Math.random() > 0.7 ? 1 : 0 // 30%概率是节假日（值为1）
+          const economicLevel = Math.random() // 经济水平 0-1之间的随机数
+          const historicalComplaints = Math.floor(Math.random() * 5) // 历史投诉数 0-4的整数
+          const temperature = 20 + Math.random() * 30 // 温度 20-50°C之间的随机数
+
+          // 将所有特征值组合成数组，并对部分特征进行归一化处理
+          const features = [
+            populationDensity, // 已经是0-1范围，无需归一化
+            loadRate,          // 已经是0-1范围，无需归一化
+            historicalFaults / 10, // 归一化到0-1范围
+            specialGroupDensity,  // 已经是0-1范围，无需归一化
+            equipmentAge,         // 已经是0-1范围，无需归一化
+            externalRisk,         // 已经是0-1范围，无需归一化
+            holidayFlag,          // 二元值，无需归一化
+            economicLevel,        // 已经是0-1范围，无需归一化
+            historicalComplaints / 5, // 归一化到0-1范围
+            (temperature - 20) / 30, // 归一化到0-1范围
+          ]
+
+          // 基于业务规则生成标签（模拟真实世界中的投诉概率模式）
+          let complaintProbability = 0
+
+          // 核心驱动因子权重较高
+          complaintProbability += populationDensity * 0.15  // 人口密度权重15%
+          complaintProbability += loadRate * 0.2             // 负载率权重20%
+          complaintProbability += (historicalFaults / 10) * 0.15  // 历史故障数权重15%
+          complaintProbability += specialGroupDensity * 0.25  // 特殊群体密度权重25%
+
+          // 背景调节因子权重较低
+          complaintProbability += equipmentAge * 0.1      // 设备老化程度权重10%
+          complaintProbability += externalRisk * 0.08     // 外部风险权重8%
+          complaintProbability += holidayFlag * 0.05      // 是否节假日权重5%
+          complaintProbability += economicLevel * 0.02    // 经济水平权重2%
+
+          // 添加一些随机噪声，模拟现实世界的不确定性
+          complaintProbability += (Math.random() - 0.5) * 0.1
+
+          // 根据概率值生成二分类标签：概率大于0.5为1（会投诉），否则为0（不会投诉）
+          const label = complaintProbability > 0.5 ? 1 : 0
+
+          // 返回特征数组和对应的标签
+          return { features, label }
+        }
+
+        // 生成模拟预测数据（当前电网网格状态）
+        // 参数gridCount：要生成的网格数量，默认为20个
+        generatePredictionData(gridCount = 20) {
+          // 初始化网格数组
+          const grids = []
+          // 循环生成指定数量的网格数据
+          for (let i = 0; i < gridCount; i++) {
+            // 生成样本数据
+            const sample = this.generateSample()
+            // 添加网格ID和其他信息
+            grids.push({
+              id: `GRID_${(i + 1).toString().padStart(3, '0')}`, // 格式化网格ID，如GRID_001
+              features: sample.features,  // 网格特征
+              riskLevel: 'pending',       // 初始风险等级为等待预测
+            })
+          }
+          // 返回网格数据数组
+          return grids
+        }
+      }
+
+      // 投诉预测模型类，定义神经网络模型和相关操作
+      class ComplaintPredictionModel {
+        // 构造函数，初始化模型相关变量
+        constructor() {
+          this.model = null           // 模型实例，初始为null
+          this.isTrained = false      // 模型是否已训练标志
+          this.trainingHistory = null // 训练历史记录
+        }
+
+        // 创建神经网络模型的方法
+        createModel() {
+          // 创建顺序模型（层按顺序堆叠）
+          const model = tf.sequential({
+            layers: [
+              // 输入层，对应10个特征
+              tf.layers.dense({
+                inputShape: [10],       // 输入形状：10个特征
+                units: 64,              // 神经元数量：64个
+                activation: 'relu',     // 激活函数：ReLU
+                kernelInitializer: 'heNormal', // 权重初始化方法：He正态分布
+              }),
+              // Dropout层，防止过拟合，随机丢弃30%的神经元
+              tf.layers.dropout({ rate: 0.3 }),
+
+              // 隐藏层
+              tf.layers.dense({
+                units: 32,              // 神经元数量：32个
+                activation: 'relu',     // 激活函数：ReLU
+              }),
+              // 第二个Dropout层，随机丢弃20%的神经元
+              tf.layers.dropout({ rate: 0.2 }),
+
+              // 输出层 - 二分类问题
+              tf.layers.dense({
+                units: 1,               // 输出单元数：1个（概率值）
+                activation: 'sigmoid',  // 激活函数：Sigmoid（输出0-1之间的概率）
+              }),
+            ],
+          })
+
+          // 编译模型，设置优化器、损失函数和评估指标
+          model.compile({
+            optimizer: tf.train.adam(0.001), // Adam优化器，学习率0.001
+            loss: 'binaryCrossentropy',     // 二分类交叉熵损失函数
+            metrics: ['accuracy'],          // 评估指标：准确率
+          })
+
+          // 保存模型实例并返回
+          this.model = model
+          return model
+        }
+
+        // 训练模型的方法
+        // 参数features：特征张量
+        // 参数labels：标签张量
+        // 参数epochs：训练轮数，默认为100轮
+        async train(features, labels, epochs = 100) {
+          // 如果模型不存在，则创建新模型
+          if (!this.model) {
+            this.createModel()
+          }
+
+          // 拆分训练集和验证集（80%训练，20%验证）
+          const splitIndex = Math.floor(features.shape[0] * 0.8)
+          const trainFeatures = features.slice(0, splitIndex)     // 训练特征
+          const trainLabels = labels.slice(0, splitIndex)         // 训练标签
+          const valFeatures = features.slice(splitIndex)          // 验证特征
+          const valLabels = labels.slice(splitIndex)              // 验证标签
+
+          // 训练模型并获取训练历史
+          this.trainingHistory = await this.model.fit(
+            trainFeatures,  // 训练特征
+            trainLabels,    // 训练标签
+            {
+              epochs: epochs,                    // 训练轮数
+              validationData: [valFeatures, valLabels], // 验证数据
+              batchSize: 32,                     // 批次大小：32
+              callbacks: {                       // 回调函数
+                onEpochEnd: async (epoch, logs) => {  // 每轮结束时执行
+                  // 更新训练状态显示
+                  document.getElementById(
+                    'trainingStatus'
+                  ).innerHTML = `训练中... 第 ${epoch + 1}/${epochs} 轮`
+                  // 更新训练进度显示，兼容不同版本的TensorFlow.js
+                  document.getElementById('trainingProgress').innerHTML =
+                    `训练准确率: ${logs.accuracy ? logs.accuracy.toFixed(4) : (logs.acc ? logs.acc.toFixed(4) : 'N/A')} | ` +
+                    `验证准确率: ${
+                      logs.val_accuracy ? logs.val_accuracy.toFixed(4) : (logs.val_acc ? logs.val_acc.toFixed(4) : 'N/A')
+                    }`
+
+                  // 强制UI更新，确保进度实时显示
+                  await tf.nextFrame()
+                },
+              },
+            }
+          )
+
+          // 设置训练完成标志
+          this.isTrained = true
+          // 返回训练历史
+          return this.trainingHistory
+        }
+
+        // 预测网格风险的方法
+        // 参数grids：网格数据数组
+        async predict(grids) {
+          // 检查模型是否已训练
+          if (!this.isTrained) {
+            throw new Error('模型尚未训练，请先训练模型')
+          }
+
+          // 提取所有网格的特征数据
+          const featuresArray = grids.map((grid) => grid.features)
+          // 将特征数据转换为2维张量
+          const featuresTensor = tf.tensor2d(featuresArray)
+
+          // 使用模型进行预测
+          const predictions = await this.model.predict(featuresTensor)
+          // 获取预测结果数据
+          const predictionData = await predictions.data()
+
+          // 清理张量，释放内存
+          featuresTensor.dispose()
+          predictions.dispose()
+
+          // 为每个网格添加预测结果
+          return grids.map((grid, index) => {
+            // 获取当前网格的风险分数
+            const riskScore = predictionData[index]
+            let riskLevel, riskClass
+
+            // 根据风险分数确定风险等级和对应的CSS类
+            if (riskScore < 0.3) {
+              riskLevel = '低风险'
+              riskClass = 'risk-low'
+            } else if (riskScore < 0.7) {
+              riskLevel = '中风险'
+              riskClass = 'risk-medium'
+            } else {
+              riskLevel = '高风险'
+              riskClass = 'risk-high'
+            }
+
+            // 返回增强后的网格数据，包含风险预测信息
+            return {
+              ...grid,                // 保留原有属性
+              riskScore: riskScore,   // 添加风险分数
+              riskLevel: riskLevel,   // 添加风险等级文本
+              riskClass: riskClass,   // 添加风险等级CSS类
+            }
+          })
+        }
+
+        // 计算特征重要性的方法（模拟实现）
+        getFeatureImportance() {
+          // 定义特征的中文名称
+          const featureNames = [
+            '人口密度',
+            '负载率',
+            '历史故障数',
+            '特殊群体密度',
+            '设备老化程度',
+            '外部风险',
+            '是否节假日',
+            '经济水平',
+            '历史投诉数',
+            '温度',
+          ]
+
+          // 模拟特征重要性（在实际项目中需要通过排列重要性等方法计算）
+          return featureNames
+            .map((name, index) => ({
+              name: name,
+              importance: 0.3 + Math.random() * 0.7, // 生成0.3-1之间的随机重要性分数
+            }))
+            .sort((a, b) => b.importance - a.importance) // 按重要性降序排序
+        }
+      }
+
+      // 创建全局变量实例
+      let dataGenerator = new PowerGridDataGenerator()       // 数据生成器实例
+      let predictionModel = new ComplaintPredictionModel()   // 预测模型实例
+      let currentGrids = []                                  // 当前网格数据
+
+      // 开始训练模型的函数
+      async function startTraining() {
+        try {
+          // 更新UI显示训练状态
+          document.getElementById('trainingStatus').innerHTML =
+            '生成训练数据中...'
+
+          // 生成5000个训练样本
+          const trainingData = dataGenerator.generateTrainingData(5000)
+          // 更新UI显示数据生成完成
+          document.getElementById('trainingStatus').innerHTML =
+            '数据生成完成，开始训练模型...'
+
+          // 训练模型，使用50轮
+          await predictionModel.train(
+            trainingData.features,
+            trainingData.labels,
+            50
+          )
+
+          // 更新UI显示训练完成
+          document.getElementById('trainingStatus').innerHTML =
+            '<span style="color: green;">✅ 模型训练完成！</span>'
+          document.getElementById('modelMetrics').innerHTML =
+            '模型已就绪，可以开始预测网格风险'
+
+          // 清理内存，释放训练数据张量
+          trainingData.features.dispose()
+          trainingData.labels.dispose()
+        } catch (error) {
+          // 捕获并显示训练过程中的错误
+          console.error('训练失败:', error)
+          document.getElementById(
+            'trainingStatus'
+          ).innerHTML = `<span style="color: red;">训练失败: ${error.message}</span>`
+        }
+      }
+
+      // 生成预测结果的函数
+      async function generatePredictions() {
+        // 检查模型是否已训练
+        if (!predictionModel.isTrained) {
+          alert('请先训练模型！') // 显示提示信息
+          return                  // 终止函数执行
+        }
+
+        try {
+          // 更新UI显示预测中状态
+          document.getElementById('predictions').innerHTML = '预测中...'
+
+          // 生成15个网格的模拟数据
+          currentGrids = dataGenerator.generatePredictionData(15)
+
+          // 使用模型进行预测
+          const predictions = await predictionModel.predict(currentGrids)
+
+          // 显示预测结果
+          displayPredictions(predictions)
+
+          // 显示特征重要性分析
+          displayFeatureImportance()
+        } catch (error) {
+          // 捕获并显示预测过程中的错误
+          console.error('预测失败:', error)
+          document.getElementById(
+            'predictions'
+          ).innerHTML = `<span style="color: red;">预测失败: ${error.message}</span>`
+        }
+      }
+
+      // 显示预测结果的函数
+      function displayPredictions(predictions) {
+        let html = '' // 初始化HTML字符串
+
+        // 遍历所有预测结果
+        predictions.forEach((grid) => {
+          // 根据风险分数确定卡片样式类
+          const cardClass =
+            grid.riskScore > 0.7
+              ? 'high-risk'
+              : grid.riskScore > 0.4
+              ? 'medium-risk'
+              : ''
+
+          // 构建卡片HTML内容
+          html += `
+                <div class="card ${cardClass}">
+                    <h4>${grid.id} 
+                        <span class="risk-indicator ${grid.riskClass}">
+                            ${grid.riskLevel} (${(grid.riskScore * 100).toFixed(1)}%)
+                        </span>
+                    </h4>
+                    <p>特征: 人口密度 ${(grid.features[0] * 100).toFixed(1)}%, 
+                        负载率 ${(grid.features[1] * 100).toFixed(1)}%, 
+                        特殊群体 ${(grid.features[3] * 100).toFixed(1)}%</p>
+                </div>
+                `
+        })
+
+        // 将生成的HTML设置到预测结果显示区域
+        document.getElementById('predictions').innerHTML = html
+      }
+
+      // 显示特征重要性的函数
+      function displayFeatureImportance() {
+        // 获取特征重要性数据
+        const importance = predictionModel.getFeatureImportance()
+        let html = '' // 初始化HTML字符串
+
+        // 遍历所有特征重要性数据
+        importance.forEach((feature) => {
+          // 计算进度条宽度（百分比）
+          const width = feature.importance * 100 + '%'
+          // 构建特征重要性条的HTML内容
+          html += `
+                <div class="feature-bar">
+                    <div class="feature-name">${feature.name}</div>
+                    <div class="feature-value">
+                        <div class="feature-fill" style="width: ${width}"></div>
+                    </div>
+                    <div style="width: 60px; text-align: right;">
+                        ${(feature.importance * 100).toFixed(1)}%
+                    </div>
+                </div>
+                `
+        })
+
+        // 将生成的HTML设置到特征重要性显示区域
+        document.getElementById('featureImportance').innerHTML = html
+      }
+
+      // 重置模型的函数
+      function resetModel() {
+        // 创建新的模型实例
+        predictionModel = new ComplaintPredictionModel()
+        // 重置UI显示
+        document.getElementById('trainingStatus').innerHTML =
+          '模型已重置，准备开始训练...'
+        document.getElementById('trainingProgress').innerHTML = ''
+        document.getElementById('modelMetrics').innerHTML = ''
+        document.getElementById('predictions').innerHTML = ''
+        document.getElementById('featureImportance').innerHTML = ''
+      }
+
+      // 页面加载完成后执行的初始化函数
+      document.addEventListener('DOMContentLoaded', function () {
+        // 输出初始化信息到控制台
+        console.log('敏感人群动态保电预测系统已初始化')
+        console.log('点击"开始训练模型"来训练神经网络')
+      })
+    </script>
+  </body>
+</html>

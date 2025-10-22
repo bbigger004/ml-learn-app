@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>敏感人群动态保电 - 投诉风险预测</title>
+    <!-- 使用纯JavaScript实现的梯度提升树库 -->
+    <script src="https://cdn.jsdelivr.net/npm/simple-statistics@7.8.3/dist/simple-statistics.min.js"></script>
+    <style>
+      body {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+        color: #2c3e50;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .card {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 4px solid #3498db;
+      }
+      .card.high-risk {
+        border-left-color: #e74c3c;
+        background: #ffeaea;
+      }
+      .card.medium-risk {
+        border-left-color: #f39c12;
+        background: #fff3cd;
+      }
+      button {
+        background: #3498db;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 5px;
+      }
+      button:hover {
+        background: #2980b9;
+      }
+      button:disabled {
+        background: #bdc3c7;
+        cursor: not-allowed;
+      }
+      .risk-indicator {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        color: white;
+        font-weight: bold;
+        margin-left: 10px;
+      }
+      .risk-low {
+        background: #27ae60;
+      }
+      .risk-medium {
+        background: #f39c12;
+      }
+      .risk-high {
+        background: #e74c3c;
+      }
+      .feature-importance {
+        margin-top: 20px;
+      }
+      .feature-bar {
+        display: flex;
+        align-items: center;
+        margin: 8px 0;
+      }
+      .feature-name {
+        width: 200px;
+        font-weight: bold;
+      }
+      .feature-value {
+        flex-grow: 1;
+        height: 20px;
+        background: #ecf0f1;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .feature-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3498db, #2ecc71);
+        transition: width 0.5s;
+      }
+      .loading-spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        margin-right: 10px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🏠 敏感人群动态保电 - 投诉风险预测</h1>
+        <p>基于真实LightGBM思想的梯度提升树预测模型</p>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>📊 模型训练状态</h3>
+          <div id="trainingStatus">准备开始训练...</div>
+          <div id="trainingProgress"></div>
+          <div id="modelMetrics"></div>
+        </div>
+
+        <div class="card">
+          <h3>⚡ 实时预测控制</h3>
+          <button onclick="startTraining()">开始训练模型</button>
+          <button onclick="generatePredictions()">生成网格预测</button>
+          <button onclick="resetModel()">重置模型</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🔍 高风险网格预警</h3>
+        <div id="predictions"></div>
+      </div>
+
+      <div class="card">
+        <h3>📈 特征重要性分析</h3>
+        <div id="featureImportance" class="feature-importance"></div>
+      </div>
+    </div>
+
+    <script>
+      // 模拟数据生成器类，用于创建训练数据和预测数据
+      class PowerGridDataGenerator {
+        constructor() {
+          // 定义模型使用的10个特征
+          this.features = [
+            'population_density', // 人口密度
+            'load_rate', // 负载率
+            'historical_faults', // 历史故障数
+            'special_group_density', // 特殊群体密度
+            'equipment_age', // 设备老化程度
+            'external_risk', // 外部风险
+            'holiday_flag', // 是否节假日
+            'economic_level', // 经济水平
+            'historical_complaints', // 历史投诉数
+            'temperature', // 温度
+          ]
+        }
+
+        // 生成模拟训练数据的方法
+        generateTrainingData(samples = 10000) {
+          const features = []
+          const labels = []
+
+          for (let i = 0; i < samples; i++) {
+            const sample = this.generateSample()
+            features.push(sample.features)
+            labels.push(sample.label)
+          }
+
+          return {
+            features: features,
+            labels: labels,
+          }
+        }
+
+        // 生成单个样本的方法
+        generateSample() {
+          const populationDensity = Math.random()
+          const loadRate = Math.random()
+          const historicalFaults = Math.floor(Math.random() * 10)
+          const specialGroupDensity = Math.random()
+          const equipmentAge = Math.random()
+          const externalRisk = Math.random()
+          const holidayFlag = Math.random() > 0.7 ? 1 : 0
+          const economicLevel = Math.random()
+          const historicalComplaints = Math.floor(Math.random() * 5)
+          const temperature = 20 + Math.random() * 30
+
+          const features = [
+            populationDensity,
+            loadRate,
+            historicalFaults / 10,
+            specialGroupDensity,
+            equipmentAge,
+            externalRisk,
+            holidayFlag,
+            economicLevel,
+            historicalComplaints / 5,
+            (temperature - 20) / 30,
+          ]
+
+          // 基于业务规则生成标签
+          let complaintProbability = 0
+          complaintProbability += populationDensity * 0.15
+          complaintProbability += loadRate * 0.2
+          complaintProbability += (historicalFaults / 10) * 0.15
+          complaintProbability += specialGroupDensity * 0.25
+          complaintProbability += equipmentAge * 0.1
+          complaintProbability += externalRisk * 0.08
+          complaintProbability += holidayFlag * 0.05
+          complaintProbability += economicLevel * 0.02
+          complaintProbability += (Math.random() - 0.5) * 0.1
+
+          const label = complaintProbability > 0.5 ? 1 : 0
+          return { features, label }
+        }
+
+        // 生成模拟预测数据
+        generatePredictionData(gridCount = 20) {
+          const grids = []
+          for (let i = 0; i < gridCount; i++) {
+            const sample = this.generateSample()
+            grids.push({
+              id: `GRID_${(i + 1).toString().padStart(3, '0')}`,
+              features: sample.features,
+              riskLevel: 'pending',
+            })
+          }
+          return grids
+        }
+      }
+
+      // 纯JavaScript实现的梯度提升树预测模型类
+      class JavaScriptGradientBoostingModel {
+        constructor() {
+          this.trees = []              // 存储决策树集合
+          this.isTrained = false       // 模型是否已训练标志
+          this.featureImportance = null // 特征重要性
+          this.learningRate = 0.1      // 学习率
+          this.numTrees = 0            // 树的数量
+          this.maxDepth = 0            // 树的最大深度
+        }
+
+        // 训练梯度提升树模型
+        async train(features, labels, numTrees = 100, maxDepth = 6) {
+          try {
+            this.learningRate = 0.1
+            this.numTrees = numTrees
+            this.maxDepth = maxDepth
+            this.trees = []
+            
+            // 初始化预测值为0
+            let predictions = Array(labels.length).fill(0)
+            
+            // 转换标签为概率值的对数几率形式（用于logistic回归）
+            let residuals = labels.map(y => y - 0.5) // 初始残差
+            
+            // 循环构建多棵决策树
+            for (let treeIndex = 0; treeIndex < numTrees; treeIndex++) {
+              // 更新训练状态
+              document.getElementById(
+                'trainingStatus'
+              ).innerHTML = `<span class="loading-spinner"></span>训练中... 第 ${treeIndex + 1}/${numTrees} 轮`
+              console.log('this.trees',this.trees)
+              // 计算当前训练误差
+              const currentError = this.calculateError(predictions, labels)
+              document.getElementById('trainingProgress').innerHTML = 
+                `训练误差: ${currentError.toFixed(4)}`
+              
+              // 构建一棵决策树来拟合残差
+              const tree = this.buildDecisionTree(features, residuals, 0, maxDepth)
+              this.trees.push(tree)
+              
+              // 更新预测值（累加学习率*新树的预测结果）
+              for (let i = 0; i < features.length; i++) {
+                const treePrediction = this.predictWithTree(tree, features[i])
+                predictions[i] += this.learningRate * treePrediction
+                // 更新残差（使用梯度提升的思想）
+                const prob = 1 / (1 + Math.exp(-predictions[i])) // sigmoid变换
+                residuals[i] = labels[i] - prob
+              }
+              
+              // 避免UI卡顿
+              if (treeIndex % 5 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 10))
+              }
+            }
+            
+            // 计算特征重要性
+            this.calculateFeatureImportance()
+            
+            // 设置训练完成标志
+            this.isTrained = true
+            return this.trees
+      
+          } catch (error) {
+            console.error('训练错误:', error)
+            throw error
+          }
+        }
+        
+        // 构建决策树（递归函数）
+        buildDecisionTree(features, residuals, depth, maxDepth) {
+          // 如果达到最大深度或者数据太少，返回叶节点
+          if (depth >= maxDepth || features.length <= 4) {
+            return {
+              type: 'leaf',
+              value: this.calculateLeafValue(residuals)
+            }
+          }
+          
+          // 寻找最佳分割点
+          let bestFeatureIndex = -1
+          let bestThreshold = 0
+          let bestGain = -Infinity
+          let bestLeftIndices = []
+          let bestRightIndices = []
+          
+          // 遍历所有特征寻找最佳分割
+          for (let featureIndex = 0; featureIndex < features[0].length; featureIndex++) {
+            // 对特征值排序并去重，寻找可能的分割点
+            const featureValues = [...new Set(features.map(row => row[featureIndex]))].sort((a, b) => a - b)
+            
+            // 尝试每个分割点
+            for (let i = 1; i < featureValues.length; i++) {
+              const threshold = (featureValues[i-1] + featureValues[i]) / 2
+              
+              // 分割数据
+              const leftIndices = []
+              const rightIndices = []
+              for (let j = 0; j < features.length; j++) {
+                if (features[j][featureIndex] <= threshold) {
+                  leftIndices.push(j)
+                } else {
+                  rightIndices.push(j)
+                }
+              }
+              
+              // 计算分割增益
+              const gain = this.calculateSplitGain(residuals, leftIndices, rightIndices)
+              
+              if (gain > bestGain) {
+                bestGain = gain
+                bestFeatureIndex = featureIndex
+                bestThreshold = threshold
+                bestLeftIndices = leftIndices
+                bestRightIndices = rightIndices
+              }
+            }
+          }
+          
+          // 如果没有找到有意义的分割，返回叶节点
+          if (bestGain <= 0 || bestLeftIndices.length === 0 || bestRightIndices.length === 0) {
+            return {
+              type: 'leaf',
+              value: this.calculateLeafValue(residuals)
+            }
+          }
+          
+          // 递归构建左右子树
+          const leftFeatures = bestLeftIndices.map(i => features[i])
+          const leftResiduals = bestLeftIndices.map(i => residuals[i])
+          const rightFeatures = bestRightIndices.map(i => features[i])
+          const rightResiduals = bestRightIndices.map(i => residuals[i])
+          
+          return {
+            type: 'node',
+            featureIndex: bestFeatureIndex,
+            threshold: bestThreshold,
+            left: this.buildDecisionTree(leftFeatures, leftResiduals, depth + 1, maxDepth),
+            right: this.buildDecisionTree(rightFeatures, rightResiduals, depth + 1, maxDepth)
+          }
+        }
+        
+        // 计算叶节点值
+        calculateLeafValue(residuals) {
+          // 对于梯度提升树，叶节点值是残差的均值
+          return residuals.reduce((sum, val) => sum + val, 0) / residuals.length
+        }
+        
+        // 计算分割增益
+        calculateSplitGain(residuals, leftIndices, rightIndices) {
+          // 计算父节点方差
+          const parentVariance = this.calculateVariance(residuals)
+          
+          // 计算左右子节点方差
+          const leftResiduals = leftIndices.map(i => residuals[i])
+          const rightResiduals = rightIndices.map(i => residuals[i])
+          const leftVariance = this.calculateVariance(leftResiduals)
+          const rightVariance = this.calculateVariance(rightResiduals)
+          
+          // 计算信息增益
+          const leftWeight = leftResiduals.length / residuals.length
+          const rightWeight = rightResiduals.length / residuals.length
+          const gain = parentVariance - (leftWeight * leftVariance + rightWeight * rightVariance)
+          
+          return gain
+        }
+        
+        // 计算方差
+        calculateVariance(values) {
+          if (values.length === 0) return 0
+          const mean = values.reduce((sum, val) => sum + val, 0) / values.length
+          return values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length
+        }
+        
+        // 计算训练误差
+        calculateError(predictions, labels) {
+          let errorCount = 0
+          for (let i = 0; i < predictions.length; i++) {
+            // 将预测值转换为概率
+            const prob = 1 / (1 + Math.exp(-predictions[i]))
+            // 二分类预测：概率>0.5为1，否则为0
+            const predictedClass = prob > 0.5 ? 1 : 0
+            if (predictedClass !== labels[i]) {
+              errorCount++
+            }
+          }
+          return errorCount / predictions.length
+        }
+        
+        // 使用单棵树进行预测
+        predictWithTree(tree, features) {
+          if (tree.type === 'leaf') {
+            return tree.value
+          }
+          
+          if (features[tree.featureIndex] <= tree.threshold) {
+            return this.predictWithTree(tree.left, features)
+          } else {
+            return this.predictWithTree(tree.right, features)
+          }
+        }
+        
+        // 计算特征重要性
+        calculateFeatureImportance() {
+          // 定义特征的中文名称
+          const featureNames = [
+            '人口密度',
+            '负载率',
+            '历史故障数',
+            '特殊群体密度',
+            '设备老化程度',
+            '外部风险',
+            '是否节假日',
+            '经济水平',
+            '历史投诉数',
+            '温度',
+          ]
+          
+          // 初始化特征重要性计数
+          const importanceCount = Array(10).fill(0)
+          
+          // 统计每个特征在所有树中的出现次数（简化的重要性计算）
+          const countFeatureUsage = (tree) => {
+            if (tree.type === 'node') {
+              importanceCount[tree.featureIndex]++
+              countFeatureUsage(tree.left)
+              countFeatureUsage(tree.right)
+            }
+          }
+          
+          // 遍历所有树
+          this.trees.forEach(tree => countFeatureUsage(tree))
+          
+          // 标准化并创建重要性对象数组
+          const maxCount = Math.max(...importanceCount)
+          this.featureImportance = featureNames.map((name, index) => ({
+            name,
+            importance: maxCount > 0 ? importanceCount[index] / maxCount : 0
+          })).sort((a, b) => b.importance - a.importance)
+        }
+
+        // 模拟特征重要性（当真实计算不可用时）
+        getMockFeatureImportance() {
+          const featureNames = [
+            '人口密度',
+            '负载率',
+            '历史故障数',
+            '特殊群体密度',
+            '设备老化程度',
+            '外部风险',
+            '是否节假日',
+            '经济水平',
+            '历史投诉数',
+            '温度',
+          ]
+
+          // 根据业务逻辑设置模拟的重要性
+          return [
+            { name: '特殊群体密度', importance: 0.95 },
+            { name: '负载率', importance: 0.85 },
+            { name: '历史故障数', importance: 0.75 },
+            { name: '人口密度', importance: 0.70 },
+            { name: '设备老化程度', importance: 0.55 },
+            { name: '外部风险', importance: 0.45 },
+            { name: '是否节假日', importance: 0.35 },
+            { name: '历史投诉数', importance: 0.30 },
+            { name: '温度', importance: 0.25 },
+            { name: '经济水平', importance: 0.20 }
+          ]
+        }
+
+        // 预测网格风险的方法
+        async predict(grids) {
+          if (!this.isTrained) {
+            throw new Error('模型尚未训练，请先训练模型')
+          }
+
+          try {
+            // 提取所有网格的特征数据
+            const featuresArray = grids.map((grid) => grid.features)
+            
+            // 转换为DMatrix格式
+            const dtest = await xgboost.DMatrix({
+              data: featuresArray
+            })
+
+            // 使用模型进行预测
+            const predictions = await this.booster.predict(dtest)
+
+            // 为每个网格添加预测结果
+            return grids.map((grid, index) => {
+              const riskScore = predictions[index]
+              let riskLevel, riskClass
+
+              if (riskScore < 0.3) {
+                riskLevel = '低风险'
+                riskClass = 'risk-low'
+              } else if (riskScore < 0.7) {
+                riskLevel = '中风险'
+                riskClass = 'risk-medium'
+              } else {
+                riskLevel = '高风险'
+                riskClass = 'risk-high'
+              }
+
+              return {
+                ...grid,
+                riskScore: riskScore,
+                riskLevel: riskLevel,
+                riskClass: riskClass,
+              }
+            })
+          } catch (error) {
+            console.error('预测错误:', error)
+            // 如果XGBoost预测失败，使用简化的规则预测作为后备
+            return this.fallbackPredict(grids)
+          }
+        }
+
+        // 使用模型进行预测
+        async predict(grids) {
+          if (!this.isTrained) {
+            throw new Error('模型尚未训练，请先训练模型')
+          }
+
+          try {
+            return grids.map(grid => {
+              // 初始化预测值
+              let prediction = 0
+              
+              // 遍历所有树进行预测并累加结果
+              this.trees.forEach(tree => {
+                prediction += this.learningRate * this.predictWithTree(tree, grid.features)
+              })
+              
+              // 使用sigmoid函数将预测值转换为概率
+              const riskScore = 1 / (1 + Math.exp(-prediction))
+              
+              let riskLevel, riskClass
+              if (riskScore < 0.3) {
+                riskLevel = '低风险'
+                riskClass = 'risk-low'
+              } else if (riskScore < 0.7) {
+                riskLevel = '中风险'
+                riskClass = 'risk-medium'
+              } else {
+                riskLevel = '高风险'
+                riskClass = 'risk-high'
+              }
+
+              return {
+                ...grid,
+                riskScore: riskScore,
+                riskLevel: riskLevel,
+                riskClass: riskClass,
+                isGradientBoosting: true // 标记这是使用梯度提升树的预测
+              }
+            })
+          } catch (error) {
+            console.error('预测错误:', error)
+            // 如果预测失败，使用简化的规则预测作为后备
+            return this.simplifiedPredict(grids)
+          }
+        }
+        
+        // 简化的预测方法（当梯度提升树预测失败时）
+        simplifiedPredict(grids) {
+          console.log('使用简化的规则预测作为后备方案')
+          return grids.map(grid => {
+            // 提取关键特征
+            const [populationDensity, loadRate, historicalFaults, 
+                   specialGroupDensity, equipmentAge, externalRisk,
+                   holidayFlag] = grid.features
+            
+            // 使用基于业务规则的预测
+            let riskScore = 0
+            riskScore += specialGroupDensity * 0.35  // 特殊群体密度权重最高
+            riskScore += loadRate * 0.25             // 负载率权重高
+            riskScore += historicalFaults * 0.15     // 历史故障数权重中等
+            riskScore += populationDensity * 0.10    // 人口密度权重中等
+            riskScore += equipmentAge * 0.08         // 设备老化权重较低
+            riskScore += externalRisk * 0.05         // 外部风险权重较低
+            riskScore += holidayFlag * 0.02          // 节假日权重最低
+            
+            // 限制在0-1范围内
+            riskScore = Math.max(0, Math.min(1, riskScore))
+            
+            let riskLevel, riskClass
+            if (riskScore < 0.3) {
+              riskLevel = '低风险'
+              riskClass = 'risk-low'
+            } else if (riskScore < 0.7) {
+              riskLevel = '中风险'
+              riskClass = 'risk-medium'
+            } else {
+              riskLevel = '高风险'
+              riskClass = 'risk-high'
+            }
+
+            return {
+              ...grid,
+              riskScore: riskScore,
+              riskLevel: riskLevel,
+              riskClass: riskClass,
+              isSimplified: true // 标记这是使用简化规则的预测
+            }
+          })
+        }
+
+        // 保存模型的方法
+        async saveModel() {
+          if (!this.isTrained) {
+            throw new Error('没有可保存的模型')
+          }
+          
+          // 将模型转换为JSON格式
+          const modelData = {
+            trees: this.trees,
+            learningRate: this.learningRate,
+            featureImportance: this.featureImportance
+          }
+          
+          // 返回JSON字符串
+          return JSON.stringify(modelData)
+        }
+
+        // 加载模型的方法
+        async loadModel(jsonModel) {
+          try {
+            const modelData = JSON.parse(jsonModel)
+            this.trees = modelData.trees
+            this.learningRate = modelData.learningRate
+            this.featureImportance = modelData.featureImportance
+            this.isTrained = true
+            return true
+          } catch (error) {
+            console.error('模型加载失败:', error)
+            return false
+          }
+        }
+      }
+
+      // 创建全局变量实例
+      let dataGenerator = new PowerGridDataGenerator()
+      let predictionModel = new JavaScriptGradientBoostingModel()
+      let currentGrids = []
+
+      // 开始训练模型的函数
+      async function startTraining() {
+        try {
+          document.getElementById('trainingStatus').innerHTML = 
+            '<span class="loading-spinner"></span>生成训练数据中...'
+
+          // 生成5000个训练样本
+          const trainingData = dataGenerator.generateTrainingData(5000)
+          document.getElementById('trainingStatus').innerHTML = 
+            '<span class="loading-spinner"></span>数据生成完成，开始训练梯度提升树模型...'
+
+          // 训练LightGBM模型
+          await predictionModel.train(
+            trainingData.features,
+            trainingData.labels,
+            50,  // 树的数量
+            6    // 最大深度
+          )
+
+          document.getElementById('trainingStatus').innerHTML = 
+            '<span style="color: green;">✅ 梯度提升树模型训练完成！</span>'
+          document.getElementById('modelMetrics').innerHTML = 
+            '模型已就绪，可以开始预测网格风险'
+
+        } catch (error) {
+          console.error('训练失败:', error)
+          document.getElementById(
+            'trainingStatus'
+          ).innerHTML = `<span style="color: red;">训练失败: ${error.message}</span>`
+          
+          // 如果XGBoost训练失败，显示友好提示并说明将使用后备方案
+          if (error.message.includes('xgboost')) {
+            document.getElementById('modelMetrics').innerHTML = 
+              '<span style="color: orange;">注意：XGBoost训练失败，预测时将使用规则化方法作为后备</span>'
+            predictionModel.isTrained = true // 允许使用后备预测
+          }
+        }
+      }
+
+      // 生成预测结果的函数
+      async function generatePredictions() {
+        if (!predictionModel.isTrained) {
+          alert('请先训练模型！')
+          return
+        }
+
+        try {
+          document.getElementById('predictions').innerHTML = 
+            '<span class="loading-spinner"></span>预测中...'
+
+          // 生成15个网格的模拟数据
+          currentGrids = dataGenerator.generatePredictionData(15)
+
+          // 使用模型进行预测
+          const predictions = await predictionModel.predict(currentGrids)
+
+          // 显示预测结果
+          displayPredictions(predictions)
+
+          // 显示特征重要性分析
+          displayFeatureImportance()
+        } catch (error) {
+          console.error('预测失败:', error)
+          document.getElementById(
+            'predictions'
+          ).innerHTML = `<span style="color: red;">预测失败: ${error.message}</span>`
+        }
+      }
+
+      // 显示预测结果的函数
+      function displayPredictions(predictions) {
+        let html = ''
+
+        predictions.forEach((grid) => {
+          const cardClass = 
+            grid.riskScore > 0.7
+              ? 'high-risk'
+              : grid.riskScore > 0.4
+              ? 'medium-risk'
+              : ''
+
+          // 生成预测方法标签
+          let methodLabel = ''
+          if (grid.isGradientBoosting) {
+            methodLabel = '<span style="color: #27ae60; font-size: 0.8em;">(梯度提升树)</span>'
+          } else if (grid.isSimplified) {
+            methodLabel = '<span style="color: #666; font-size: 0.8em;">(规则预测)</span>'
+          }
+
+          html += `
+                <div class="card ${cardClass}">
+                    <h4>${grid.id} 
+                        <span class="risk-indicator ${grid.riskClass}">
+                            ${grid.riskLevel} (${(grid.riskScore * 100).toFixed(1)}%)
+                        </span>
+                        ${methodLabel}
+                    </h4>
+                    <p>特征: 人口密度 ${(grid.features[0] * 100).toFixed(1)}%, 
+                        负载率 ${(grid.features[1] * 100).toFixed(1)}%, 
+                        特殊群体 ${(grid.features[3] * 100).toFixed(1)}%</p>
+                </div>
+                `
+        })
+
+        document.getElementById('predictions').innerHTML = html
+      }
+
+      // 显示特征重要性的函数
+      function displayFeatureImportance() {
+        // 获取特征重要性数据
+        const importance = predictionModel.featureImportance || 
+                          predictionModel.getMockFeatureImportance()
+        let html = ''
+
+        importance.forEach((feature) => {
+          const width = feature.importance * 100 + '%'
+          html += `
+                <div class="feature-bar">
+                    <div class="feature-name">${feature.name}</div>
+                    <div class="feature-value">
+                        <div class="feature-fill" style="width: ${width}"></div>
+                    </div>
+                    <div style="width: 60px; text-align: right;">
+                        ${(feature.importance * 100).toFixed(1)}%
+                    </div>
+                </div>
+                `
+        })
+
+        document.getElementById('featureImportance').innerHTML = html
+      }
+
+      // 重置模型的函数
+      function resetModel() {
+        predictionModel = new JavaScriptGradientBoostingModel()
+        document.getElementById('trainingStatus').innerHTML = 
+          '模型已重置，准备开始训练...'
+        document.getElementById('trainingProgress').innerHTML = ''
+        document.getElementById('modelMetrics').innerHTML = ''
+        document.getElementById('predictions').innerHTML = ''
+        document.getElementById('featureImportance').innerHTML = ''
+      }
+
+      // 页面加载完成后执行的初始化函数
+      document.addEventListener('DOMContentLoaded', function () {
+        console.log('敏感人群动态保电预测系统已初始化（基于纯JavaScript梯度提升树）')
+        console.log('使用自实现的梯度提升树算法，无需外部依赖')
+        
+        document.getElementById('modelMetrics').innerHTML = 
+          '<span style="color: #27ae60;">纯JavaScript实现的梯度提升树已准备就绪</span>'
+      })
+    </script>
+  </body>
+</html>
