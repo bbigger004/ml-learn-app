@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(npm run start:dev:*)",
+      "Bash(npm run dev)",
+      "Bash(npm install:*)",
+      "Bash(npm run build)",
+      "Bash(npm run start:prod:*)",
+      "Bash(PORT=3001 npm run start:prod:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

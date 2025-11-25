@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小区充电桩预测模型</title>
+    <link href="https://unpkg.com/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+        .progress {
+            height: 25px;
+        }
+        .parameter-control {
+            margin-bottom: 15px;
+        }
+        .model-status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .status-ready {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        .status-training {
+            background-color: #fff3cd;
+            color: #664d03;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #842029;
+        }
+        .prediction-result {
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 20px;
+        }
+        .tab-content {
+            padding-top: 20px;
+        }
+        .feature-input {
+            margin-bottom: 10px;
+        }
+        .model-metrics {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .metric-card {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            min-width: 150px;
+            margin-bottom: 10px;
+        }
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <header class="text-center mb-4">
+            <h1 class="display-5 fw-bold">小区充电桩预测模型</h1>
+            <p class="lead">基于神经网络的前端预测模型，支持模型持久化和参数微调</p>
+        </header>
+
+        <div class="row">
+            <!-- 左侧：数据加载和模型训练 -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">数据与模型</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="dataFile" class="form-label">选择数据文件</label>
+                            <input class="form-control" type="file" id="dataFile" accept=".csv">
+                            <div class="form-text">支持CSV格式数据文件</div>
+                        </div>
+                        
+                        <div class="model-status status-ready" id="modelStatus">
+                            模型状态：就绪
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" id="loadDataBtn">加载数据</button>
+                            <button class="btn btn-primary" id="trainModelBtn" disabled>训练模型</button>
+                            <button class="btn btn-success" id="saveModelBtn" disabled>保存模型</button>
+                            <button class="btn btn-info" id="loadModelBtn">加载已保存模型</button>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <label for="trainingProgress" class="form-label">训练进度</label>
+                            <div class="progress">
+                                <div class="progress-bar" id="trainingProgress" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div id="epochInfo" class="form-text">等待开始训练...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 模型参数调整 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">模型参数调整</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="parameter-control">
+                            <label for="learningRate" class="form-label">学习率: <span id="learningRateValue">0.01</span></label>
+                            <input type="range" class="form-range" id="learningRate" min="0.001" max="0.1" step="0.001" value="0.01">
+                        </div>
+                        
+                        <div class="parameter-control">
+                            <label for="epochs" class="form-label">训练轮数: <span id="epochsValue">50</span></label>
+                            <input type="range" class="form-range" id="epochs" min="10" max="10000" step="10" value="50">
+                        </div>
+                        
+                        <div class="parameter-control">
+                            <label for="batchSize" class="form-label">批次大小: <span id="batchSizeValue">32</span></label>
+                            <input type="range" class="form-range" id="batchSize" min="8" max="128" step="8" value="32">
+                        </div>
+                        
+                        <div class="parameter-control">
+                            <label for="hiddenUnits" class="form-label">隐藏层单元数: <span id="hiddenUnitsValue">64</span></label>
+                            <input type="range" class="form-range" id="hiddenUnits" min="8" max="256" step="8" value="64">
+                        </div>
+                        
+                        <div class="parameter-control">
+                            <label for="hiddenLayers" class="form-label">隐藏层数量: <span id="hiddenLayersValue">2</span></label>
+                            <input type="range" class="form-range" id="hiddenLayers" min="1" max="5" step="1" value="2">
+                        </div>
+                        
+                        <div class="parameter-control">
+                            <label for="activation" class="form-label">激活函数</label>
+                            <select class="form-select" id="activation">
+                                <option value="relu" selected>ReLU</option>
+                                <option value="sigmoid">Sigmoid</option>
+                                <option value="tanh">Tanh</option>
+                                <option value="linear">Linear</option>
+                            </select>
+                        </div>
+                        
+                        <div class="parameter-control">
+                            <label for="optimizer" class="form-label">优化器</label>
+                            <select class="form-select" id="optimizer">
+                                <option value="adam" selected>Adam</option>
+                                <option value="sgd">SGD</option>
+                                <option value="rmsprop">RMSprop</option>
+                                <option value="adagrad">Adagrad</option>
+                            </select>
+                        </div>
+                        
+                        <button class="btn btn-warning w-100" id="resetParamsBtn">重置为默认参数</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：预测和结果展示 -->
+            <div class="col-lg-6">
+                <!-- 预测输入 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">预测输入</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="predictionTab" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button" role="tab">手动输入</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="random-tab" data-bs-toggle="tab" data-bs-target="#random" type="button" role="tab">随机测试</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="future-tab" data-bs-toggle="tab" data-bs-target="#future" type="button" role="tab">未来预测</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content" id="predictionTabContent">
+                            <div class="tab-pane fade show active" id="manual" role="tabpanel">
+                                <div id="featureInputs" class="mt-3">
+                                    <!-- 特征输入将通过JavaScript动态生成 -->
+                                </div>
+                                <button class="btn btn-primary mt-3" id="predictBtn" disabled>进行预测</button>
+                            </div>
+                            <div class="tab-pane fade" id="random" role="tabpanel">
+                                <div class="mt-3">
+                                    <p>从已加载的数据集中随机选择样本进行预测测试</p>
+                                    <button class="btn btn-primary" id="randomTestBtn" disabled>随机测试</button>
+                                    <button class="btn btn-info" id="batchTestBtn" disabled>批量测试 (10个样本)</button>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="future" role="tabpanel">
+                                <div class="mt-3">
+                                    <p>预测未来某月某小区的y值</p>
+                                    <button class="btn btn-success" id="predictFutureBtn" disabled>预测未来数据</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="prediction-result bg-light" id="predictionResult" style="display: none;">
+                            预测结果将在这里显示
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 模型评估 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">模型评估</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="model-metrics" id="modelMetrics">
+                            <!-- 指标将通过JavaScript动态生成 -->
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="lossChart"></canvas>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="predictionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript库 -->
+    <script src="https://unpkg.com/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+    <script src="https://unpkg.com/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/chart.js@3.9.1/dist/chart.min.js"></script>
+    
+    <!-- 应用脚本 -->
+    <script src="js/app.js"></script>
+    <script src="js/model.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/data-processing-fix.js"></script>
+</body>
+</html>

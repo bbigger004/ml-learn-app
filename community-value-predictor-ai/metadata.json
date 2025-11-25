@@ -1,0 +1,4 @@
+{
+  "name": "Community Value Predictor AI",
+  "description": "A React application using ML5.js to train neural networks on community data to predict value 'y'. Features parameter tuning, visualization, and model persistence."
+}
