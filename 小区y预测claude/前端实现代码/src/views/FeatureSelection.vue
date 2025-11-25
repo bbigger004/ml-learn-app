@@ -20,7 +20,11 @@
         <!-- 目标变量选择 -->
         <div class="target-selection">
           <h3>选择目标变量</h3>
-          <el-select v-model="targetColumn" placeholder="请选择目标变量" style="width: 300px">
+          <el-select
+            v-model="targetColumn"
+            placeholder="请选择目标变量"
+            style="width: 300px"
+          >
             <el-option
               v-for="column in numericColumns"
               :key="column"
@@ -36,15 +40,25 @@
           <div class="feature-list">
             <el-checkbox-group v-model="selectedFeatures">
               <el-row :gutter="20">
-                <el-col :span="8" v-for="column in availableFeatures" :key="column">
+                <el-col
+                  :span="8"
+                  v-for="column in availableFeatures"
+                  :key="column"
+                >
                   <el-checkbox :label="column">
                     {{ column }}
                     <el-tag
                       v-if="columnStats[column]"
-                      :type="columnStats[column].type === 'numeric' ? 'success' : 'warning'"
+                      :type="
+                        columnStats[column].type === 'numeric'
+                          ? 'success'
+                          : 'warning'
+                      "
                       size="small"
                     >
-                      {{ columnStats[column].type === 'numeric' ? '数值' : '分类' }}
+                      {{
+                        columnStats[column].type === 'numeric' ? '数值' : '分类'
+                      }}
                     </el-tag>
                   </el-checkbox>
                 </el-col>
@@ -60,12 +74,18 @@
             <el-table-column prop="feature" label="特征" min-width="120" />
             <el-table-column prop="type" label="类型" width="80">
               <template #default="scope">
-                <el-tag :type="scope.row.type === 'numeric' ? 'success' : 'warning'">
+                <el-tag
+                  :type="scope.row.type === 'numeric' ? 'success' : 'warning'"
+                >
                   {{ scope.row.type === 'numeric' ? '数值' : '分类' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="uniqueCount" label="唯一值数量" width="120" />
+            <el-table-column
+              prop="uniqueCount"
+              label="唯一值数量"
+              width="120"
+            />
             <el-table-column prop="sampleValues" label="示例值" min-width="200">
               <template #default="scope">
                 <span>{{ scope.row.sampleValues.join(', ') }}</span>
@@ -76,9 +96,7 @@
 
         <!-- 操作按钮 -->
         <div class="action-buttons">
-          <el-button @click="$router.push('/data-upload')">
-            上一步
-          </el-button>
+          <el-button @click="$router.push('/data-upload')"> 上一步 </el-button>
           <el-button
             type="primary"
             :disabled="!canProceed"
@@ -131,21 +149,23 @@ const targetColumn = ref('y')
 
 // 计算属性
 const numericColumns = computed(() => {
-  return columns.value.filter(col =>
-    columnStats.value[col]?.type === 'numeric' && col !== '年月'
+  return columns.value.filter(
+    (col) => columnStats.value[col]?.type === 'numeric' && col !== '年月'
   )
 })
 
 const availableFeatures = computed(() => {
-  return columns.value.filter(col => col !== targetColumn.value && col !== '年月')
+  return columns.value.filter(
+    (col) => col !== targetColumn.value && col !== '年月'
+  )
 })
 
 const featureStatsTable = computed(() => {
-  return columns.value.map(col => ({
+  return columns.value.map((col) => ({
     feature: col,
     type: columnStats.value[col]?.type || 'unknown',
     uniqueCount: columnStats.value[col]?.uniqueCount || 0,
-    sampleValues: columnStats.value[col]?.sampleValues || []
+    sampleValues: columnStats.value[col]?.sampleValues || [],
   }))
 })
 
@@ -168,8 +188,18 @@ const loadColumns = async () => {
       columnStats.value = response.data.columnStats
 
       // 默认选择一些特征
-      const defaultFeatures = ['小区年限', '饱和度', '用户数量', '均价', '变压器容量']
-      selectedFeatures.value = defaultFeatures.filter(feature =>
+      const defaultFeatures = [
+        '小区年限',
+        '饱和度',
+        '均价',
+        '变压器容量',
+        '是否增长停滞',
+        '变压器数量',
+        '建成年份',
+        '是否老旧小区',
+        '用户数量',
+      ]
+      selectedFeatures.value = defaultFeatures.filter((feature) =>
         columns.value.includes(feature)
       )
     }
@@ -185,7 +215,7 @@ const handlePreprocess = async () => {
     preprocessing.value = true
     const response = await api.preprocessData({
       selectedFeatures: selectedFeatures.value,
-      targetColumn: targetColumn.value
+      targetColumn: targetColumn.value,
     })
 
     if (response.success) {

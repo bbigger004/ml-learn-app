@@ -100,7 +100,17 @@ let DataService = class DataService {
                     }
                 }
                 else {
-                    processedRow[feature] = Number(value);
+                    if (typeof value === 'string' && isNaN(Number(value))) {
+                        let hash = 0;
+                        for (let i = 0; i < value.length; i++) {
+                            hash = ((hash << 5) - hash) + value.charCodeAt(i);
+                            hash = hash & hash;
+                        }
+                        processedRow[feature] = Math.abs(hash) % 1000;
+                    }
+                    else {
+                        processedRow[feature] = Number(value);
+                    }
                 }
             });
             processedRow[targetColumn] = Number(row[targetColumn]);

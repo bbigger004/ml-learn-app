@@ -125,16 +125,35 @@ let ModelService = class ModelService {
                 labels.push(label);
             }
         });
-        return { features, labels };
+        const normalizedFeatures = this.standardizeFeatures(features);
+        return { features: normalizedFeatures, labels };
+    }
+    standardizeFeatures(features) {
+        if (features.length === 0)
+            return features;
+        const numFeatures = features[0].length;
+        const means = new Array(numFeatures).fill(0);
+        const stds = new Array(numFeatures).fill(0);
+        for (let j = 0; j < numFeatures; j++) {
+            const values = features.map(row => row[j]);
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const std = Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length);
+            means[j] = mean;
+            stds[j] = std === 0 ? 1 : std;
+        }
+        return features.map(row => row.map((val, j) => (val - means[j]) / stds[j]));
     }
     trainLinearRegression(features, labels) {
         const n = features.length;
         const m = features[0].length;
         let coefficients = new Array(m).fill(0);
         let intercept = 0;
-        const learningRate = 0.01;
-        const iterations = 1000;
+        let learningRate = 0.1;
+        const iterations = 5000;
+        const lossHistory = [];
         for (let iter = 0; iter < iterations; iter++) {
+            let gradientIntercept = 0;
+            const gradientCoefficients = new Array(m).fill(0);
             let totalError = 0;
             for (let i = 0; i < n; i++) {
                 let prediction = intercept;
@@ -143,12 +162,25 @@ let ModelService = class ModelService {
                 }
                 const error = prediction - labels[i];
                 totalError += error * error;
-                intercept -= learningRate * error;
+                gradientIntercept += error;
                 for (let j = 0; j < m; j++) {
-                    coefficients[j] -= learningRate * error * features[i][j];
+                    gradientCoefficients[j] += error * features[i][j];
                 }
             }
-            if (totalError / n < 0.001) {
+            gradientIntercept /= n;
+            for (let j = 0; j < m; j++) {
+                gradientCoefficients[j] /= n;
+            }
+            intercept -= learningRate * gradientIntercept;
+            for (let j = 0; j < m; j++) {
+                coefficients[j] -= learningRate * gradientCoefficients[j];
+            }
+            const avgLoss = totalError / n;
+            lossHistory.push(avgLoss);
+            if (iter > 0 && lossHistory[iter] > lossHistory[iter - 1]) {
+                learningRate *= 0.8;
+            }
+            if (avgLoss < 0.001 || (iter > 10 && Math.abs(lossHistory[iter] - lossHistory[iter - 1]) < 1e-6)) {
                 break;
             }
         }

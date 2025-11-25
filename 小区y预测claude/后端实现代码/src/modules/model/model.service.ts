@@ -184,24 +184,56 @@ export class ModelService {
       }
     });
 
-    return { features, labels };
+    // 特征标准化
+    const normalizedFeatures = this.standardizeFeatures(features);
+
+    return { features: normalizedFeatures, labels };
+  }
+
+  private standardizeFeatures(features: number[][]): number[][] {
+    if (features.length === 0) return features;
+
+    const numFeatures = features[0].length;
+    const means = new Array(numFeatures).fill(0);
+    const stds = new Array(numFeatures).fill(0);
+
+    // 计算每个特征的均值和标准差
+    for (let j = 0; j < numFeatures; j++) {
+      const values = features.map(row => row[j]);
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      const std = Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length);
+
+      means[j] = mean;
+      stds[j] = std === 0 ? 1 : std; // 避免除零
+    }
+
+    // 标准化特征
+    return features.map(row =>
+      row.map((val, j) => (val - means[j]) / stds[j])
+    );
   }
 
   private trainLinearRegression(features: number[][], labels: number[]) {
-    // 使用梯度下降法实现线性回归，避免数值不稳定问题
+    // 使用改进的梯度下降法实现线性回归
     const n = features.length;
     const m = features[0].length;
 
     // 初始化参数
     let coefficients = new Array(m).fill(0);
     let intercept = 0;
-    const learningRate = 0.01;
-    const iterations = 1000;
+    let learningRate = 0.1;
+    const iterations = 5000;
 
-    // 梯度下降
+    // 存储历史损失用于监控
+    const lossHistory: number[] = [];
+
+    // 批量梯度下降
     for (let iter = 0; iter < iterations; iter++) {
+      let gradientIntercept = 0;
+      const gradientCoefficients = new Array(m).fill(0);
       let totalError = 0;
 
+      // 计算梯度
       for (let i = 0; i < n; i++) {
         // 预测值
         let prediction = intercept;
@@ -213,15 +245,36 @@ export class ModelService {
         const error = prediction - labels[i];
         totalError += error * error;
 
-        // 更新参数
-        intercept -= learningRate * error;
+        // 累计梯度
+        gradientIntercept += error;
         for (let j = 0; j < m; j++) {
-          coefficients[j] -= learningRate * error * features[i][j];
+          gradientCoefficients[j] += error * features[i][j];
         }
       }
 
-      // 如果误差很小，提前停止
-      if (totalError / n < 0.001) {
+      // 计算平均梯度
+      gradientIntercept /= n;
+      for (let j = 0; j < m; j++) {
+        gradientCoefficients[j] /= n;
+      }
+
+      // 更新参数
+      intercept -= learningRate * gradientIntercept;
+      for (let j = 0; j < m; j++) {
+        coefficients[j] -= learningRate * gradientCoefficients[j];
+      }
+
+      // 记录损失
+      const avgLoss = totalError / n;
+      lossHistory.push(avgLoss);
+
+      // 自适应学习率调整
+      if (iter > 0 && lossHistory[iter] > lossHistory[iter - 1]) {
+        learningRate *= 0.8; // 损失增加时减小学习率
+      }
+
+      // 提前停止条件
+      if (avgLoss < 0.001 || (iter > 10 && Math.abs(lossHistory[iter] - lossHistory[iter - 1]) < 1e-6)) {
         break;
       }
     }

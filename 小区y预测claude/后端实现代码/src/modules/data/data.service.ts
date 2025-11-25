@@ -113,7 +113,18 @@ export class DataService {
             processedRow[feature] = 0;
           }
         } else {
-          processedRow[feature] = Number(value);
+          // 处理分类变量 - 如果是字符串，进行编码
+          if (typeof value === 'string' && isNaN(Number(value))) {
+            // 简单的字符串哈希编码
+            let hash = 0;
+            for (let i = 0; i < value.length; i++) {
+              hash = ((hash << 5) - hash) + value.charCodeAt(i);
+              hash = hash & hash; // 转换为32位整数
+            }
+            processedRow[feature] = Math.abs(hash) % 1000; // 映射到0-999范围
+          } else {
+            processedRow[feature] = Number(value);
+          }
         }
       });
 

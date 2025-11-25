@@ -253,7 +253,17 @@ const startTraining = async () => {
 
     // 调用训练API
     const response = await api.trainModel({
-      selectedFeatures: ['小区年限', '饱和度', '用户数量', '均价'], // 这里应该从store获取
+      selectedFeatures: [
+  "小区年限",
+  "饱和度",
+  "均价",
+  "变压器容量",
+  "是否增长停滞",
+  "变压器数量",
+  "建成年份",
+  "是否老旧小区",
+  "用户数量"
+], // 这里应该从store获取
       targetColumn: 'y',
       testSize: trainingConfig.testSize,
       modelParams: trainingConfig.modelParams

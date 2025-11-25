@@ -114,6 +114,7 @@ export declare class ModelService {
     }>;
     getModel(modelId: string): ModelInfo | undefined;
     private prepareTrainingData;
+    private standardizeFeatures;
     private trainLinearRegression;
     private predictLinearRegression;
     private evaluateModel;
